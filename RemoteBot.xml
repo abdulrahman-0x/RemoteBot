@@ -1,0 +1,29 @@
+<service>
+  <id>RemoteBot</id>
+  <name>Remote Control Bot</name>
+  <description>Discord Remote Control Bot - 24/7</description>
+
+  <!-- bot.exe في نفس مجلد RemoteBot.exe -->
+  <executable>%BASE%\bot.exe</executable>
+
+  <!-- إعادة التشغيل لو وقع -->
+  <onfailure action="restart" delay="10 sec"/>
+  <onfailure action="restart" delay="30 sec"/>
+  <onfailure action="restart" delay="60 sec"/>
+  <resetfailure>1 hour</resetfailure>
+
+  <!-- يشتغل مع الويندوز -->
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+
+  <!-- Logs -->
+  <log mode="roll-by-size">
+    <sizeThreshold>5120</sizeThreshold>
+    <keepFiles>3</keepFiles>
+  </log>
+  <logpath>%BASE%\logs</logpath>
+
+  <priority>Normal</priority>
+  <stoptimeout>15 sec</stoptimeout>
+  <env name="PYTHONIOENCODING" value="utf-8"/>
+</service>
