@@ -1,6 +1,10 @@
 """
 الحارس - يراقب bot.exe ويعيد تشغيله لو وقع.
-هذا هو الملف اللي يشتغل مع الويندوز.
+
+This is the MANUAL/DEV supervisor only. The production Windows service is
+WinSW (RemoteBot.exe + RemoteBot.xml), which has its own restart-on-failure
+policy and does NOT launch this file. Start it with start_hidden.vbs
+(`pythonw watchdog.py`).
 """
 import subprocess
 import sys
@@ -62,8 +66,6 @@ log = logging.getLogger("watchdog")
 # ============================================================
 #             منع تشغيل نسختين من الحارس
 # ============================================================
-LOCK_FILE = os.path.join(BASE_DIR, "watchdog.lock")
-
 def check_single_instance():
     """يتأكد إن مافي حارس ثاني شغال."""
     import ctypes

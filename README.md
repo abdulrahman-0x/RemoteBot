@@ -6,14 +6,21 @@ the bot replies with a button-based control panel that can **shut down**,
 **restart**, **sign out**, **sleep**, or **lock the screen** of the machine the
 bot runs on.
 
-The bot runs as a 24/7 Windows service (packaged with PyInstaller and wrapped by
-WinSW), with a VBS helper process that handles the low-level screen-lock /
-sign-out / sleep actions when direct system calls fail.
+In production it runs as a Windows service (`bot.py` packaged with PyInstaller
+into `bot.exe`, wrapped by the WinSW `RemoteBot.exe` service), with a generated
+VBS helper that performs screen-lock and sign-out in the interactive session
+when the direct system calls fail.
 
 > ⚠️ RemoteBot gives timed, authenticated access to power-controlling one
 > Windows machine. It is intended for a personal machine you administer. Restrict
 > the bot token, channel, and user IDs carefully (see
 > [Configuration](docs/CONFIGURATION.md)).
+>
+> Two behaviours to know before you rely on it: leaving `ALLOWED_CHANNEL_ID`
+> and `ALLOWED_USER_IDS` unset opens the panel to **anyone** who can see the
+> channel, and **Shut Down** / **Restart** always report success to the user
+> whether or not the command worked. See
+> [Architecture](docs/ARCHITECTURE.md#botpy--the-discord-bot-main-process).
 
 ---
 
@@ -29,14 +36,17 @@ sign-out / sleep actions when direct system calls fail.
 - **Access control** — whitelist the channel and the Discord user IDs that may
   issue commands.
 - **Duplicate-execution guard** — an in-memory set plus a `.exec_lock` file
-  prevent an action from running twice (important for actions like sleep, where
-  the command may otherwise fire repeatedly).
+  stop the *same* action from starting twice. Note that a request the guard
+  suppresses still reports success to the user, and it clears the guard state
+  on its way out — see
+  [Architecture](docs/ARCHITECTURE.md#botpy--the-discord-bot-main-process).
 - **Resilience** — auto-reconnect with retry, a heartbeat file written every
-  30 s, and a watchdog process that restarts the bot if it dies.
+  30 s once connected, and a watchdog process that restarts the bot if it dies.
 - **Power action fallback chains** — each action tries multiple methods
-  (Win32 API, `shutdown`/`rundll32`/`schtasks`, PowerShell) before falling
-  back; lock, sign-out, and sleep additionally write a `.trigger` file that
-  the VBS helper picks up.
+  (Win32 API, `shutdown`/`rundll32`/`schtasks`, PowerShell). **Lock** and
+  **sign-out** fall back to a `.trigger` file that the VBS helper picks up;
+  **shut down** and **restart** have no helper fallback at all. Full table:
+  [Architecture](docs/ARCHITECTURE.md#botpy--the-discord-bot-main-process).
 
 ## Components at a glance
 
@@ -45,7 +55,7 @@ sign-out / sleep actions when direct system calls fail.
 | Discord bot | `bot.py` | Connects to Discord, shows the control panel, executes power actions on the host. |
 | Watchdog | `watchdog.py` | Optional supervisor; restarts `bot.exe`/`bot.py` if it exits (manual mode only). |
 | Windows service | `RemoteBot.exe` + `RemoteBot.xml` | WinSW wrapper that runs `bot.exe` as an auto-start service with restart-on-failure. |
-| VBS helper | generated `RemoteBot_Helper.vbs` | Polls `*.trigger` files and performs lock / sign-out / sleep as a last-resort mechanism. |
+| VBS helper | generated `RemoteBot_Helper.vbs` | Polls `*.trigger` files and performs lock / sign-out in the interactive session. Its `helper.log` is not a usable diagnostic — see [Architecture](docs/ARCHITECTURE.md). |
 | Lifecycle scripts | `build.bat`, `install.bat`, `uninstall.bat`, `run_bot.bat`, `start_hidden.vbs` | Build, install, uninstall, and manual-run helpers. |
 
 ## Quick start
@@ -54,9 +64,11 @@ sign-out / sleep actions when direct system calls fail.
 
 - A **Windows** machine (Win32 APIs and Windows commands are used throughout).
 - **Python 3.x** with `discord.py` for the source mode; `pyinstaller` only if
-  you build the `.exe`.
+  you build the `.exe`. Verified on Python 3.13.8 / discord.py 2.7.1.
 - A **Discord bot token** with the **Message Content Intent** enabled in the
   Discord Developer Portal (`bot.py` sets `intents.message_content = True`).
+- For the production route: the **WinSW** binary, which is *not* in this
+  repository — see [Deployment](docs/DEPLOYMENT.md#prerequisites).
 
 ### 2. Configure
 
@@ -70,10 +82,15 @@ SHUTDOWN_DELAY=10
 TRIGGER_WORD=pc
 ```
 
+> ⚠️ **`.env` is tracked in git and is not gitignored.** The committed copy is
+> the blank template, but filling it in and running `git add` will commit your
+> real bot token. See [Configuration](docs/CONFIGURATION.md#required-discord-application-setup).
+
 The bot **exits with code 1** if `.env` does not exist next to it, if
 `DISCORD_BOT_TOKEN` is empty, or if `TRIGGER_WORD` is empty. Empty numeric
-values (`ALLOWED_CHANNEL_ID`, `SHUTDOWN_DELAY`) crash instead (`ValueError`) —
-fill them in or remove the lines. Full reference:
+values (`ALLOWED_CHANNEL_ID`, `SHUTDOWN_DELAY`) raise a `ValueError` first —
+fill them in or remove the lines. Neither kind of failure is recorded in
+`bot.log`, because logging starts after config parsing. Full reference:
 [Configuration](docs/CONFIGURATION.md).
 
 ### 3. Run
@@ -84,8 +101,9 @@ fill them in or remove the lines. Full reference:
 run_bot.bat
 ```
 
-This runs `python bot.py` in an infinite loop (10 s pause between restarts) and
-logs to `bot_startup.log`.
+This runs `python bot.py` in an infinite loop (10 s pause between restarts).
+`run_bot.bat` writes a single startup line to `bot_startup.log`; the
+per-restart start/stop lines go to the console only.
 
 **Production (Windows service, recommended):**
 
@@ -102,14 +120,18 @@ See [Deployment](docs/DEPLOYMENT.md) for full details, including
 In Discord, send the configured trigger word (`TRIGGER_WORD` in `.env`) in the
 authorized channel. The bot responds with the control panel:
 
-| Button | Action | Confirmation |
-|---|---|---|
-| 🔴 إغلاق / Shut Down | Full power off | Countdown |
-| 🔄 إعادة تشغيل / Restart | Restart the machine | Countdown |
-| 🚪 تسجيل خروج / Sign Out | Log off the current session | Countdown |
-| 💤 وضع النوم / Sleep | Suspend the machine | Countdown |
-| 🔒 قفل الشاشة / Lock Screen | Lock the workstation | Immediate |
-| ✖️ إلغاء / Cancel | Close the panel | — |
+| Button | Action | Confirmation | Reports failure? |
+|---|---|---|---|
+| 🔴 إغلاق / Shut Down | Full power off | Countdown | No — always reports success |
+| 🔄 إعادة تشغيل / Restart | Restart the machine | Countdown | No — always reports success |
+| 🚪 تسجيل خروج / Sign Out | Log off the current session | Countdown | Yes |
+| 💤 وضع النوم / Sleep | Suspend the machine | Countdown | Yes, but see the sleep note below |
+| 🔒 قفل الشاشة / Lock Screen | Lock the workstation | Immediate | Yes |
+| ✖️ إلغاء / Cancel | Close the panel | — | — |
+
+Only the user who sent the trigger word can press these buttons. Sleep has no
+working helper fallback: the suspend command is fired without waiting, so the
+bot cannot tell whether it worked and never asks the VBS helper for help.
 
 ## Repository layout
 
@@ -119,14 +141,29 @@ RemoteBot/
 ├── watchdog.py         # Optional supervisor for manual mode
 ├── RemoteBot.exe       # WinSW service wrapper binary (bring your own)
 ├── RemoteBot.xml       # WinSW service configuration (must sit next to RemoteBot.exe)
-├── .env                # Configuration (token, access rules, delays)
+├── .env                # Configuration (token, access rules, delays) — TRACKED IN GIT, see docs/CONFIGURATION.md
+├── .gitignore          # Ignores runtime artifacts; deliberately not .env
 ├── build.bat           # PyInstaller build → dist\bot.exe
 ├── install.bat         # Install as Windows service + VBS helper
 ├── uninstall.bat       # Remove service, helper, scheduled task
 ├── run_bot.bat         # Manual loop runner (python bot.py)
 ├── start_hidden.vbs    # Hidden launcher for watchdog.py (pythonw)
+├── pytest.ini          # Test configuration (asyncio auto mode, testpaths=tests)
+├── tests/              # Test suite (41 tests, runs offline)
 └── docs/               # Documentation (this set)
 ```
+
+### Tests
+
+```bat
+python -m pytest
+```
+
+Requires `pytest` and `pytest-asyncio` (see
+[Deployment — Prerequisites](docs/DEPLOYMENT.md#prerequisites)). The suite
+stubs the Discord gateway and mocks every OS command, so it runs offline and
+never touches the machine's power state. `tests/conftest.py` substitutes a
+synthetic `.env` for the import, so the real one is never read.
 
 ## Documentation index
 

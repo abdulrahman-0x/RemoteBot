@@ -1,2 +1,18 @@
 __pycache__
 .pytest_cache
+
+# Runtime artifacts. Safe to ignore: regenerated on every run.
+bot.log*
+watchdog.log*
+helper.log
+heartbeat
+*.trigger
+.exec_lock
+bot_startup.log
+dist/
+build/
+*.spec
+
+# NOTE: .env is deliberately NOT ignored yet -- it is still tracked with the
+# blank template. See docs/CONFIGURATION.md#required-discord-application-setup
+# before putting a real bot token in it.
