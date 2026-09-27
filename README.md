@@ -72,7 +72,15 @@ when the direct system calls fail.
 
 ### 2. Configure
 
-Copy or edit `.env` in the project root:
+Copy the template, then add your own values to the copy. `.env` is gitignored,
+so your token stays out of version control:
+
+```bat
+copy .env.example .env
+notepad .env
+```
+
+`.env` then looks like this — substitute your real values:
 
 ```dotenv
 DISCORD_BOT_TOKEN=your-bot-token-here
@@ -82,9 +90,10 @@ SHUTDOWN_DELAY=10
 TRIGGER_WORD=pc
 ```
 
-> ⚠️ **`.env` is tracked in git and is not gitignored.** The committed copy is
-> the blank template, but filling it in and running `git add` will commit your
-> real bot token. See [Configuration](docs/CONFIGURATION.md#required-discord-application-setup).
+> ⚠️ Only `.env.example` is tracked. `.env` is listed in `.gitignore`, so it
+> cannot be committed by accident — but `build.bat` copies it into `dist\`, so a
+> second copy of the token is created on every build. See
+> [Configuration](docs/CONFIGURATION.md#required-discord-application-setup).
 
 The bot **exits with code 1** if `.env` does not exist next to it, if
 `DISCORD_BOT_TOKEN` is empty, or if `TRIGGER_WORD` is empty. Empty numeric
@@ -141,8 +150,9 @@ RemoteBot/
 ├── watchdog.py         # Optional supervisor for manual mode
 ├── RemoteBot.exe       # WinSW service wrapper binary (bring your own)
 ├── RemoteBot.xml       # WinSW service configuration (must sit next to RemoteBot.exe)
-├── .env                # Configuration (token, access rules, delays) — TRACKED IN GIT, see docs/CONFIGURATION.md
-├── .gitignore          # Ignores runtime artifacts; deliberately not .env
+├── .env.example        # Config template, tracked; all values empty. Copy to .env
+├── .env                # Your real config — gitignored, never committed
+├── .gitignore          # Ignores .env and runtime artifacts
 ├── build.bat           # PyInstaller build → dist\bot.exe
 ├── install.bat         # Install as Windows service + VBS helper
 ├── uninstall.bat       # Remove service, helper, scheduled task
@@ -162,12 +172,13 @@ python -m pytest
 Requires `pytest` and `pytest-asyncio` (see
 [Deployment — Prerequisites](docs/DEPLOYMENT.md#prerequisites)). The suite
 stubs the Discord gateway and mocks every OS command, so it runs offline and
-never touches the machine's power state. `tests/conftest.py` substitutes a
-synthetic `.env` for the import, so the real one is never read.
+never touches the machine's power state. `tests/conftest.py` synthesises both
+`os.path.exists` and `open` for the project's `.env` path, so the suite runs on
+a fresh clone with no `.env` at all and never reads a real one.
 
 ## Documentation index
 
 - [Architecture](docs/ARCHITECTURE.md) — components, data flow, execution model, deployment layout
-- [Configuration](docs/CONFIGURATION.md) — `.env` reference and Discord setup
+- [Configuration](docs/CONFIGURATION.md) — `.env` reference, `.env.example` template, Discord setup
 - [Deployment](docs/DEPLOYMENT.md) — build, install, uninstall, service management
 - [Operations](docs/OPERATIONS.md) — runtime files, logs, behavior reference, troubleshooting

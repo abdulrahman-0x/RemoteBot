@@ -1,10 +1,14 @@
 """Shared test setup for RemoteBot.
 
 bot.py has import-time side effects: it reads ``.env`` from its base directory
-and calls ``sys.exit(1)`` when the token or trigger word is empty. The real
-project ``.env`` is intentionally empty, so a plain ``import bot`` would kill
-the test process. To make the module importable under test we serve a
-synthetic ``.env`` to the import only -- every other file open is untouched.
+and calls ``sys.exit(1)`` when the file is missing or the token / trigger word
+is empty. A plain ``import bot`` would therefore kill the test process.
+
+To make the module importable under test we synthesise both halves of that
+check -- ``os.path.exists`` and ``open`` -- for the project's own ``.env`` path
+only; every other file access is untouched. Nothing here depends on a real
+``.env`` existing on disk, so the suite runs on a fresh clone where the shipped
+template is ``.env.example`` and the developer's ``.env`` is untracked.
 """
 import builtins
 import os
@@ -24,6 +28,7 @@ TEST_ENV = (
 )
 
 _real_open = builtins.open
+_real_exists = os.path.exists
 
 
 def _env_aware_open(name, *args, **kwargs):
@@ -36,8 +41,19 @@ def _env_aware_open(name, *args, **kwargs):
     return _real_open(name, *args, **kwargs)
 
 
+def _env_aware_exists(path):
+    try:
+        candidate = os.fspath(path)
+    except TypeError:
+        candidate = str(path)
+    if candidate == PROJECT_ENV:
+        return True
+    return _real_exists(path)
+
+
 # Installed before `import bot` below so the module never reads the real .env.
 builtins.open = _env_aware_open
+os.path.exists = _env_aware_exists
 
 import pytest
 

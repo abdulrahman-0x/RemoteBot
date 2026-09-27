@@ -13,6 +13,7 @@ dist/
 build/
 *.spec
 
-# NOTE: .env is deliberately NOT ignored yet -- it is still tracked with the
-# blank template. See docs/CONFIGURATION.md#required-discord-application-setup
-# before putting a real bot token in it.
+# The real config, which holds the bot token. Only the blank .env.example
+# template is tracked; see docs/CONFIGURATION.md.
+.env
+!.env.example

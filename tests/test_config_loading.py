@@ -86,7 +86,8 @@ def test_load_env_file_returns_false_when_file_missing(tmp_path, monkeypatch):
 
 
 def test_load_env_file_loads_values_from_present_file():
-    # BASE_DIR still points at the project dir; conftest serves the .env there.
+    # BASE_DIR still points at the project dir; conftest serves a synthetic .env
+    # there, so this holds whether or not a real .env exists on disk.
     assert bot.load_env_file() is True
     assert os.environ.get("DISCORD_BOT_TOKEN") == "test-token"
     assert os.environ.get("TRIGGER_WORD") == "pc"

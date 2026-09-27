@@ -23,6 +23,8 @@ if not exist "bot.py" (
 
 if not exist ".env" (
     echo ❌ .env مش موجود!
+    echo    انسخ القالب: copy .env.example .env
+    echo    ثم املأه بقيمك الحقيقية
     pause
     exit /b 1
 )
@@ -63,6 +65,8 @@ echo      ✅ bot.exe جاهز
 echo.
 
 echo [4/4] نسخ الملفات لمجلد dist...
+rem .env (not .env.example) carries the real token and must land in dist\.
+rem dist\ is gitignored too, so the copy cannot be committed.
 copy /y ".env"           "dist\.env"           >nul
 copy /y "RemoteBot.exe"  "dist\RemoteBot.exe"  >nul 2>&1
 copy /y "RemoteBot.xml"  "dist\RemoteBot.xml"  >nul 2>&1

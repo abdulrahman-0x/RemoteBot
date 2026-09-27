@@ -31,8 +31,9 @@ their Arabic output renders; `run_bot.bat` does not.
   the repository; download the matching `WinSW` release and rename it to
   `RemoteBot.exe` in the project root before building. The service config
   `RemoteBot.xml` must sit next to it.
-- A configured `.env` in the project root (see
-  [Configuration](CONFIGURATION.md)).
+- A configured `.env` in the project root — `copy .env.example .env`, then
+  fill it in (see [Configuration](CONFIGURATION.md)). `build.bat` refuses to run
+  without it.
 
 ## Production install (service mode)
 
@@ -43,7 +44,8 @@ administrator: it calls `net session` and bails out when that *succeeds*
 (`build.bat:11-16`).
 
 1. Verifies `bot.py` and `.env` exist in the project root, and refuses to
-   continue otherwise.
+   continue otherwise. A fresh clone has only `.env.example`, so run
+   `copy .env.example .env` and fill it in first.
 2. Installs Python packages (`pip install discord.py pyinstaller --quiet`).
 3. Removes any previous `dist\`, `build\`, and `*.spec` artifacts.
 4. Runs PyInstaller with a set of `--hidden-import` flags covering discord.py's
@@ -78,8 +80,10 @@ If `RemoteBot.exe` / `RemoteBot.xml` were missing in the root, the script prints
 a warning telling you to copy them manually — and `install.bat` will then
 refuse to run, so treat that warning as fatal rather than cosmetic.
 
-Note the build **bakes your live token into `dist\.env`**. The copy is
-unprotected, so treat `dist\.env` as a secret and delete the folder when done.
+Note the build **copies your live token into `dist\.env`**. Both `.env` and
+`dist\` are gitignored, so neither can be committed — but neither is encrypted
+either. Treat both as secrets and delete `dist\` when the machine is handed
+over.
 
 ### 2. Install — `install.bat` (run as **Administrator**)
 
@@ -241,6 +245,7 @@ Explorer / Task Scheduler via `wscript.exe` and has no such variable.
 | `build.bat` refuses to run | It must **not** run as Administrator (it exits when `net session` succeeds). Start a normal prompt. |
 | "bot.exe مش موجود!" (bot.exe missing) | Run `build.bat` first; it produces `dist\bot.exe`. |
 | "RemoteBot.exe مش موجود!" | The WinSW binary was not placed in the project root before building (or not copied into `dist\`). Copy `RemoteBot.exe` into the root and rebuild, or copy it into `dist\` manually. |
+| `build.bat` says `❌ .env مش موجود!` | You have not created the runtime config. The script prints the fix on the next line: run `copy .env.example .env` in the project root, then fill in your real values. Only `.env.example` is tracked in git. |
 | `.env` copied into `dist\` is empty/tokenless | The bot fails at startup. Blank numeric keys (`ALLOWED_CHANNEL_ID`, `SHUTDOWN_DELAY`) raise `ValueError` first, so you get a traceback; once those are filled, an empty `DISCORD_BOT_TOKEN` or `TRIGGER_WORD` exits with code 1. Neither reaches `bot.log` — check `dist\logs\`. Fill in every value before running `build.bat`. |
 | Service stops instantly / never reaches `RUNNING` | Check `dist\logs\` (service logs) and `dist\bot.log`. A token error (`LoginFailure`) also makes the bot exit with code 1; see [Configuration](CONFIGURATION.md#required-discord-application-setup). |
 | Helper never active (panel shows 🔴) | The helper runs as `wscript.exe`. Check the Startup folder entry and the `RemoteBot_Helper` scheduled task; both were created by `install.bat`. `install.bat` prints `⚠️ المهمة الاحتياطية فشلت` if the task registration failed — that is only a warning and does not stop the install. |

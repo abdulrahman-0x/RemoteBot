@@ -57,7 +57,8 @@ failure) or the optional **watchdog** (`watchdog.py`) keeps the bot alive.
 ### bot.py — the Discord bot (main process)
 
 **Startup order** (all at import time, before `main()`): resolve `BASE_DIR` →
-reconfigure stdout/stderr to UTF-8 on Windows → read `.env` from `BASE_DIR` →
+reconfigure stdout/stderr to UTF-8 on Windows → read `.env` from `BASE_DIR`
+(the gitignored runtime file, copied from the tracked `.env.example`) →
 parse config → exit 1 if `DISCORD_BOT_TOKEN` or `TRIGGER_WORD` is empty →
 configure logging.
 
@@ -65,8 +66,8 @@ Two consequences worth knowing:
 
 - A blank numeric key (`ALLOWED_CHANNEL_ID`, `SHUTDOWN_DELAY`, or any
   `ALLOWED_USER_IDS` entry) raises `ValueError` during parsing, *before* the two
-  emptiness checks, so a template `.env` crashes with a traceback rather than
-  exiting cleanly.
+  emptiness checks, so an unedited `.env` copied from `.env.example` crashes with
+  a traceback rather than exiting cleanly.
 - Logging is configured **after** those checks, so neither the `ValueError`
   traceback nor the exit-1 condition is ever written to `bot.log`. Startup
   failures are only visible on the console or in `dist\logs\`.

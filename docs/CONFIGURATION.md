@@ -4,6 +4,18 @@ All configuration lives in a single `.env` file in the bot's base directory
 (`BASE_DIR`): the folder containing `bot.exe` when the bot is packaged, or the
 folder containing `bot.py` when running from source.
 
+The repository ships a **`.env.example`** template whose values are all empty; the
+real `.env` is gitignored and is not committed. Copy the template, then add your
+actual environment values to the copy:
+
+```bat
+copy .env.example .env
+notepad .env
+```
+
+Everything below describes the `.env` you create — the bot never reads
+`.env.example`, only `.env`.
+
 > The bot **exits with code 1** if `.env` does not exist in `BASE_DIR`, if
 > `DISCORD_BOT_TOKEN` is empty, or if `TRIGGER_WORD` is empty. There is no
 > default token.
@@ -64,8 +76,10 @@ SHUTDOWN_DELAY=
 TRIGGER_WORD=
 ```
 
-The blank template shipped in the repository (it is tracked in git as `.env`).
-As shipped it is **not runnable**, and it fails twice over:
+The template shipped as `.env.example` (tracked in git; the `.env` you copy from
+it is not) carries no values — every key is empty, and the file documents the
+expected format for each. As shipped it is **not runnable**, and it fails twice
+over:
 
 - the blank `ALLOWED_CHANNEL_ID` / `SHUTDOWN_DELAY` values raise a `ValueError`
   at startup, and that happens *before* the emptiness checks, so you get a
@@ -112,14 +126,11 @@ There is no `.env` schema validation beyond the above — a misspelled key (say
 2. Copy the **token** into `DISCORD_BOT_TOKEN`. Treat it as a secret — anyone
    with it can run the bot and receive the panel.
 
-   > ⚠️ **`.env` is tracked in git and is deliberately not gitignored.** The
-   > committed copy is the blank template, so the repository itself leaks
-   > nothing — but filling in the file and running `git add` will commit your
-   > live token. To keep it local, either add `.env` to `.git/info/exclude`
-   > (untracked, no history change) or run `git rm --cached .env` and add
-   > `.env` to `.gitignore` (untracks it for everyone). Note that
-   > `build.bat` copies `.env` into `dist\`, so a second copy of the token
-   > exists after any build.
+   > ⚠️ **`.env` is gitignored, so the token cannot be committed by accident.**
+   > Only the blank `.env.example` is tracked. Note the caveat: `build.bat`
+   > copies `.env` into `dist\`, and `dist\` is ignored as well — but a
+   > `build.bat` that fails midway, or a manual copy, can still leave an
+   > unprotected token on disk. Treat both `.env` and `dist\.env` as secrets.
 3. Enable the **Message Content** privileged intent for the bot. `bot.py` sets
    `Intents.default()` plus `message_content = True`; without the intent the
    bot cannot read the trigger word and will never respond.
